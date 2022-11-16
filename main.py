@@ -2,6 +2,17 @@ import tkinter as tk
 import tkinter.messagebox as ms
 
 
+def read_data() -> list[str]:
+    with open('data.txt', mode='w+', encoding='utf-8') as f:
+        return f.read().split(':')
+
+
+def write_data(time_: 'Time'):
+    with open('data.txt', mode='w+', encoding='utf-8') as f:
+        f.truncate()
+        f.write(f'{time_.h}:{time_.m}:{time_.s}')
+
+
 class Time:
     def __init__(self, h=0, m=0, s=0):
         self.h = h
@@ -42,10 +53,6 @@ def create_window(title: str, w, h, x=200, y=200):
     ro.geometry(f'{w}x{h}+{x}+{y}')
     ro.iconbitmap('myIcon.ico')
     return ro
-
-
-def create_label(master, v):
-    return tk.Label(master, font=('Aril', 24), textvariable=v)
 
 
 def func_start():
@@ -129,5 +136,5 @@ label_s.pack(side='left', padx=(0, 10))
 frame3.pack()
 
 time_func()
-
+root.protocol('protocol', write_data)
 root.mainloop()
