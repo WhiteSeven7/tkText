@@ -2,15 +2,20 @@ import tkinter as tk
 import tkinter.messagebox as ms
 
 
-def read_data() -> list[str]:
-    with open('data.txt', mode='w+', encoding='utf-8') as f:
-        return f.read().split(':')
+def read_data():
+    try:
+        with open('data.txt', mode='r', encoding='utf-8') as f:
+            return tuple(map(int, f.read().split(':')))
+    except FileNotFoundError:
+        with open('data.txt', mode='w', encoding='utf-8') as f_:
+            f_.write('0:30:0')
+    return 0, 30, 0
 
 
-def write_data(time_: 'Time'):
-    with open('data.txt', mode='w+', encoding='utf-8') as f:
-        f.truncate()
-        f.write(f'{time_.h}:{time_.m}:{time_.s}')
+def write_data():
+    with open('data.txt', mode='w', encoding='utf-8') as f:
+        f.write(f'{value1.get()}:{value2.get()}:{value3.get()}')
+    root.quit()
 
 
 class Time:
@@ -98,9 +103,10 @@ def change_num(iv: tk.IntVar, com: int):
     return inner_func
 
 
+data = read_data()
 root = create_window('倒计时', 400, 300)
-time = Time(1, 1, 1)
-value = tk.StringVar(value='在下面设计倒数时间')
+time = Time(*data)
+value = tk.StringVar(value=str(time))
 label = tk.Label(root, font=('Aril', 24), textvariable=value, relief='groove', bd=4)
 label.pack(pady=20)
 
@@ -117,18 +123,20 @@ frame3 = tk.Frame(root)
 label_top = tk.Label(frame3, text='倒计时', font=('Aril', 20))
 label_top.pack(side='left', padx=(0, 5))
 
-value1 = tk.IntVar(value=0)
-entry1 = tk.Spinbox(frame3, width=4, from_=0, to=23, textvariable=value1)
+value1 = tk.IntVar(value=data[0])
+entry1 = tk.Spinbox(frame3, width=3, from_=0, to=23, font=('Aril', 18), textvariable=value1)
 entry1.pack(side='left')
 label_h = tk.Label(frame3, text='h', font=('Aril', 20))
 label_h.pack(side='left', padx=(0, 10))
 
-entry2 = tk.Spinbox(frame3, width=4, from_=0, to=59, textvariable=tk.IntVar(value=0))
+value2 = tk.IntVar(value=data[1])
+entry2 = tk.Spinbox(frame3, width=3, from_=0, to=59, font=('Aril', 18), textvariable=value2)
 entry2.pack(side='left')
 label_m = tk.Label(frame3, text='m', font=('Aril', 20))
 label_m.pack(side='left', padx=(0, 10))
 
-entry3 = tk.Spinbox(frame3, width=4, from_=0, to=59, textvariable=tk.IntVar(value=0))
+value3 = tk.IntVar(value=data[2])
+entry3 = tk.Spinbox(frame3, width=3, from_=0, to=59, font=('Aril', 18), textvariable=value3)
 entry3.pack(side='left')
 label_s = tk.Label(frame3, text='s', font=('Aril', 20))
 label_s.pack(side='left', padx=(0, 10))
@@ -136,5 +144,5 @@ label_s.pack(side='left', padx=(0, 10))
 frame3.pack()
 
 time_func()
-root.protocol('protocol', write_data)
+root.protocol('WM_DELETE_WINDOW', write_data)
 root.mainloop()
