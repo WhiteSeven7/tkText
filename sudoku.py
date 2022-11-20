@@ -1,9 +1,10 @@
 import itertools
 import tkinter as tk
-from typing import Union, Tuple, Dict, List
+from typing import Union, Tuple, Dict, List, Callable
 
 num_font = ("黑体", 24)
-text_font = None
+text_font = ("宋体", 20)
+Pos = Tuple[int, int]
 
 
 def create_window(title: str, w: int, h: int, x: int = 500, y: int = 150):
@@ -16,21 +17,34 @@ def create_window(title: str, w: int, h: int, x: int = 500, y: int = 150):
 
 def click(self: 'MyLabel'):
     def inner_func(event):
-        other = app.control.select
+        other = app.select
         if other is self:
             self.unselect()
-            app.control.select = None
+            app.select = None
             return
         if other:
             other.unselect()
         self.select()
-        app.control.select = self
+        app.select = self
 
     return inner_func
 
 
+def next_num(fr: int, fc: int, row: int, column: int) -> Tuple[int, int, int, int]:
+    # sourcery skip: assign-if-exp, reintroduce-else
+    if column < 2:
+        return fr, fc, row, column + 1
+    if row < 2:
+        return fr, fc, row + 1, 0
+    if fc < 2:
+        return fr, fc + 1, 0, 0
+    if fr < 2:
+        return fr + 1, 0, 0, 0
+    return -1, -1, -1, -1
+
+
 class MyLabel:
-    wrong: Dict[str, bool]
+    wrong: Union[Dict[str, bool], None]
 
     def __init__(self, master: tk.Misc, row: int, column: int, fr: int, fc: int, value: str):
         self.row = row
@@ -38,9 +52,15 @@ class MyLabel:
         self.f_row = fr
         self.f_column = fc
         self.value = tk.StringVar(value=value)
-        self.label = tk.Label(master, font=num_font, textvariable=self.value, relief='raised', bg='green', width=2,
-                              height=1)
-        self.label.bind('<Button-1>', click(self))
+        self.label = tk.Label(master, font=num_font, textvariable=self.value, relief='raised', width=2, height=1)
+        if value == ' ':
+            self.label.bind('<Button-1>', click(self))
+            self.normal = 'green'
+            self.wrong_color = 'red'
+        else:
+            self.normal = 'white'
+            self.wrong_color = 'darkRed'
+        self.label['bg'] = self.normal
         self.wrong = {'block': False, 'row': False, 'column': False}
 
     def get(self):
@@ -54,8 +74,10 @@ class MyLabel:
         self.wrong[range_] = bool_
         if select is self:
             self.label['bg'] = 'orange' if self.is_wrong() else 'blue'
+        elif self.is_wrong():
+            self.label['bg'] = self.wrong_color
         else:
-            self.label['bg'] = 'red' if self.is_wrong() else 'green'
+            self.label['bg'] = self.normal
 
     def select(self):
         self.label['bg'] = 'orange' if self.is_wrong() else 'blue'
@@ -71,10 +93,10 @@ class MyLabel:
 
 
 class MyLabelDict:
-    group: Dict[Tuple[int, int], 'MyLabel']
+    group: Dict[Pos, 'MyLabel']
 
-    def __init__(self, master: tk.Misc, row_num: int, column_num: int, fr: int, fc: int):
-        self.group = {(row, column): MyLabel(master, row, column, fr, fc, ' ')
+    def __init__(self, master: tk.Misc, data: Dict[Pos, str], row_num: int, column_num: int, fr: int, fc: int):
+        self.group = {(row, column): MyLabel(master, row, column, fr, fc, data[row, column])
                       for row in range(row_num)
                       for column in range(column_num)}
 
@@ -97,9 +119,9 @@ class MyFrame:
 
 
 class Block:
-    def __init__(self, master: tk.Misc, row: int, column: int, row_num: int, column_num: int):
+    def __init__(self, master: tk.Misc, data: Dict[Pos, str], row: int, column: int, row_num: int, column_num: int):
         self.my_frame = MyFrame(master, row, column)
-        self.my_label_dict = MyLabelDict(self.my_frame.frame, row_num, column_num, row, column)
+        self.my_label_dict = MyLabelDict(self.my_frame.frame, data, row_num, column_num, row, column)
 
     def __getitem__(self, item):
         return self.my_label_dict[item]
@@ -113,12 +135,13 @@ class Block:
 
 
 class FrameDict:
-    group: Dict[Tuple[int, int], 'Block']
+    group: Dict[Pos, 'Block']
     row_group: List[List['MyLabel']]
     column_group: List[List['MyLabel']]
 
-    def __init__(self, master: tk.Misc, row_num: int, column_num: int, rn: int, cn: int):
-        self.group = {(row, column): Block(master, row, column, rn, cn)
+    def __init__(self, master: tk.Misc, level: Dict[Pos, Dict[Pos, str]], row_num: int, column_num: int, rn: int,
+                 cn: int):
+        self.group = {(row, column): Block(master, level[(row, column)], row, column, rn, cn)
                       for row in range(row_num)
                       for column in range(column_num)}
         self.row_group = []
@@ -143,32 +166,98 @@ class FrameDict:
     def values(self):
         return self.group.values()
 
+    def set_same_dif(self, select):
+        groups = {'block': self.group[(select.f_row, select.f_column)].values(),
+                  'row': self.row_group[select.f_row * 3 + select.row],
+                  'column': self.column_group[select.f_column * 3 + select.column]}
+        for range_, group in groups.items():
+            all_num = set()
+            same_num = set()
+            for a_label in group:
+                value = a_label.get()
+                if value == ' ':
+                    continue
+                a_set = same_num if value in all_num else all_num
+                a_set.add(value)
+            for a_label in group:
+                a_label.set_same_dif(select, range_, a_label.get() in same_num)
+
     def layout(self):
         for my_frame in self.values():
             my_frame.layout()
 
 
 class Window:
-    def __init__(self):
-        self.root = create_window("数独游戏", 500, 400)
+    frame: tk.Frame
+    frame_dict: 'FrameDict'
 
+    def __init__(self, func: Callable[[], None]):
+        self.root = create_window("数独游戏", 500, 500)
+        # 大部分构造在fun里
+        self.func = func
+        self.button = tk.Button(self.root, text='下一关', font=text_font, command=func)
+        self.button.pack()
+
+    def load_next(self, level):
+        if hasattr(self, 'frame'):
+            self.frame.destroy()
         self.frame = tk.Frame(self.root)
+        self.frame_dict = FrameDict(self.frame, level, 3, 3, 3, 3)
+        self.frame_dict.layout()
         self.frame.pack(side='bottom')
 
-        self.frame_dict = FrameDict(self.frame, 3, 3, 3, 3)
-        self.frame_dict.layout()
 
-    def run(self):
-        self.root.mainloop()
+class Levels:
+    data: List[Dict[Pos, Dict[Pos, str]]]
+
+    def __init__(self, path: str):
+        self.index = -1
+        self.data = []
+        self._create_data(path)
+
+    def _create_data(self, path: str):
+        self.data = []
+        with open(path, mode='r', encoding='utf-8') as f:
+            txt = f.read()
+        levels = txt.split('\n\n')
+        for level in levels:
+            a_dict = {}
+            fr = fc = row = column = 0
+            for char in level:
+                if char not in '123456789 ':
+                    continue
+                if (fr, fc) not in a_dict:
+                    a_dict[(fr, fc)] = {}
+                a_dict[(fr, fc)][(row, column)] = char
+                fr, fc, row, column = next_num(fr, fc, row, column)
+            self.data.append(a_dict)
+
+    def index_add(self):
+        self.index += 1
+        if self.index >= len(self.data):
+            self.index = 0
 
 
-class Control:
-    def __init__(self, root: tk.Tk, frame_dict: 'FrameDict'):
-        self.select: Union['MyLabel', None] = None
-        root.bind('<Key>', self.builder(frame_dict))
+class App:
+    select: Union['MyLabel', None]
 
-    def builder(self, frame_dict: 'FrameDict'):
-        def key_press(event: tk.Event):
+    def __init__(self):
+        self.levels = Levels('sudoku.txt')
+        self.window = Window(self.next_level())
+        self.select = None
+        self.window.func()
+        self.window.root.bind('<Key>', self.builder())
+
+    def next_level(self):
+        def inner():
+            self.levels.index_add()
+            self.window.load_next(self.levels.data[self.levels.index])
+            self.select = None
+
+        return inner
+
+    def builder(self):
+        def inner(event: tk.Event):
             if not self.select:
                 return
             try:
@@ -179,40 +268,12 @@ class Control:
                 else:
                     return
             self.select.set(num)
-
-        def examine():
-            select = self.select
-            if not select:
-                return
-            groups = {'block': frame_dict[(select.f_row, select.f_column)].values(),
-                      'row': frame_dict.row_group[select.f_row * 3 + select.row],
-                      'column': frame_dict.column_group[select.f_column * 3 + select.column]}
-            for range_, group in groups.items():
-                all_num = set()
-                same_num = set()
-                for a_label in group:
-                    value = a_label.get()
-                    if value == ' ':
-                        continue
-                    a_set = same_num if value in all_num else all_num
-                    a_set.add(value)
-                for a_label in group:
-                    a_label.set_same_dif(self.select, range_, a_label.get() in same_num)
-
-        def inner(event: tk.Event):
-            key_press(event)
-            examine()
+            self.window.frame_dict.set_same_dif(self.select)
 
         return inner
 
-
-class App:
-    def __init__(self):
-        self.window = Window()
-        self.control = Control(self.window.root, self.window.frame_dict)
-
     def run(self):
-        self.window.run()
+        self.window.root.mainloop()
 
 
 app = App()
