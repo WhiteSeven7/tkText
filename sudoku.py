@@ -34,10 +34,10 @@ def next_num(fr: int, fc: int, row: int, column: int) -> Tuple[int, int, int, in
     # sourcery skip: assign-if-exp, reintroduce-else
     if column < 2:
         return fr, fc, row, column + 1
-    if row < 2:
-        return fr, fc, row + 1, 0
     if fc < 2:
-        return fr, fc + 1, 0, 0
+        return fr, fc + 1, row, 0
+    if row < 2:
+        return fr, 0, row + 1, 0
     if fr < 2:
         return fr + 1, 0, 0, 0
     return -1, -1, -1, -1
@@ -69,6 +69,9 @@ class MyLabel:
     def set(self, num: int):
         value = ' ' if num == 0 else str(num)
         self.value.set(value)
+
+    def get_poss(self) -> Tuple[int, int, int, int]:
+        return self.f_row, self.f_column, self.row, self.column
 
     def set_same_dif(self, select: 'MyLabel', range_: str, bool_: bool):
         self.wrong[range_] = bool_
@@ -257,7 +260,43 @@ class App:
         return inner
 
     def builder(self):
+
+        def move(select: 'MyLabel', face: str) -> Tuple[int, int, int, int]:
+            fr, fc, row, column = select.get_poss()
+            if face == 'Up':
+                if row > 0:
+                    return fr, fc, row - 1, column
+                return (fr - 1, fc, 2, column) if fr > 0 else (2, fc, 2, column)
+            if face == 'Down':
+                if row < 2:
+                    return fr, fc, row + 1, column
+                return (fr + 1, fc, 0, column) if fr < 2 else (0, fc, 0, column)
+            if face == 'Left':
+                if column > 0:
+                    return fr, fc, row, column - 1
+                return (fr, fc - 1, row, 2) if fc > 0 else (fr, 2, row, 2)
+            if face == 'Right':
+                if column < 2:
+                    return fr, fc, row, column + 1
+                return (fr, fc + 1, row, 0) if fc < 2 else (fr, 0, row, 0)
+            return fr, fc, row, column
+
+        def set_move(face):
+            if not self.select:
+                self.select = self.window.frame_dict[(0, 0)].my_label_dict[(0, 0)]
+            else:
+                self.select.unselect()
+                while True:
+                    fr, fc, row, column = move(self.select, face)
+                    self.select = self.window.frame_dict[(fr, fc)].my_label_dict[(row, column)]
+                    if self.select.normal == 'green':
+                        break
+            self.select.select()
+
         def inner(event: tk.Event):
+            if event.keysym in ('Up', 'Down', 'Left', 'Right'):
+                set_move(event.keysym)
+                return
             if not self.select:
                 return
             try:
